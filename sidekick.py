@@ -50,6 +50,9 @@ parser.add_argument( '--ip', action='store', required=True,
                      help='Private or public IP of the instance that is running this container.' )
 
 # OPTIONAL PARAMETERS
+parser.add_argument( '--docker', action='store', default='unix:///var/run/docker.sock',
+                     help='Docker base URI.' )
+
 parser.add_argument( '--prefix', action='store', default='/services',
                      help='ETCD folder where we\'ll announce services.' )
 
@@ -84,8 +87,8 @@ def main():
     # Connect to docker
     if len( kwargs.keys() ) == 0:
         logger.warning( 'Unable to discover Docker settings through env' )
-        logger.info( 'Using /var/run/docker.sock' )
-        kwargs['base_url'] = 'unix://var/run/docker.sock'
+        logger.info( 'Using {}'.format( args.docker ) )
+        kwargs['base_url'] = args.docker
 
     docker_client = Client(**kwargs)
 
