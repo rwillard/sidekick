@@ -143,14 +143,22 @@ def main():
                 s.connect( ( value['ip'], value['port'] ) )
             except ConnectionRefusedError:
                 logger.error( 'tcp://{ip}:{port} health check FAILED'.format(**value) )
-                # Remove this server from ETCD if it exists
-                etcd_client.delete( full_key )
+                healthy = False
             else:
+                s.close()
                 logger.error( 'tcp://{ip}:{port} health check SUCCEEDED'.format(**value) )
+                healthy = True
                 s.close()
 
+            try:
+                if not healthy:
+                    # Remove this server from ETCD if it exists
+                    etcd_client.delete( full_key )
+                else:
                 # Announce this server to ETCD
                 etcd_client.set( full_key, value['uri'] )
+            except etcd.EtcdException as e:
+                logging.error( e )
 
         logger.info( 'Sleeping for {} seconds'.format( args.timeout ) )
         time.sleep( args.timeout )
