@@ -1,0 +1,7 @@
+etcd:
+  image: elcolio/etcd:2.0.10
+  ports:
+    - "2379:2379"
+    - "4001:4001"
+  command: -name test0 -advertise-client-urls=http://localdocker:4001
+
