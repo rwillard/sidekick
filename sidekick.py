@@ -3,7 +3,7 @@
 # @Author: ahuynh
 # @Date:   2015-06-10 16:51:36
 # @Last Modified by:   ahuynh
-# @Last Modified time: 2015-06-19 13:17:41
+# @Last Modified time: 2015-06-19 13:56:05
 '''
     The sidekick should essentially replace job of the following typical
     bash script that is used to announce a service to ETCD.
