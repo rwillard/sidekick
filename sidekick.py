@@ -3,7 +3,7 @@
 # @Author: ahuynh
 # @Date:   2015-06-10 16:51:36
 # @Last Modified by:   ahuynh
-# @Last Modified time: 2015-06-19 10:54:04
+# @Last Modified time: 2015-06-19 13:17:41
 '''
     The sidekick should essentially replace job of the following typical
     bash script that is used to announce a service to ETCD.
@@ -50,8 +50,17 @@ parser.add_argument( '--ip', action='store', required=True,
                      help='Private or public IP of the instance that is running this container.' )
 
 # OPTIONAL PARAMETERS
+parser.add_argument( '--check-ip', action='store', default='0.0.0.0',
+                     help='IP used for health checks.' )
+
 parser.add_argument( '--docker', action='store', default='unix:///var/run/docker.sock',
                      help='Docker base URI.' )
+
+parser.add_argument( '--etcd-host', action='store', default='localhost',
+                     help='ETCD host' )
+
+parser.add_argument( '--etcd-port', action='store', type=int, default=4001,
+                     help='ETCD port' )
 
 parser.add_argument( '--prefix', action='store', default='/services',
                      help='ETCD folder where we\'ll announce services.' )
@@ -163,7 +172,7 @@ def find_matching_container( containers, args ):
 
             # Store the details
             uri = '{}:{}'.format( args.ip, port )
-            matching[ uuid ] = { 'ip': args.ip, 'port': port, 'uri': uri }
+            matching[ uuid ] = { 'ip': args.check_ip, 'port': port, 'uri': uri }
 
     return matching
 
@@ -184,7 +193,7 @@ def main():
         kwargs['base_url'] = args.docker
 
     # Connect to ECTD
-    etcd_client = etcd.Client()
+    etcd_client = etcd.Client( host=args.etcd_host, port=args.etcd_port )
     etcd_folder = os.path.join( args.prefix, args.domain )
     logger.debug( 'Announcing to {}'.format( etcd_folder ) )
 
