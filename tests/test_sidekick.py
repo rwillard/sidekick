@@ -3,14 +3,23 @@
 # @Author: ahuynh
 # @Date:   2015-06-18 20:15:30
 # @Last Modified by:   ahuynh
-# @Last Modified time: 2015-06-19 10:36:06
+# @Last Modified time: 2015-06-19 10:55:22
 import unittest
 
 from collections import namedtuple
-from sidekick import check_name, find_matching_container, health_check, public_ports
+from sidekick import announce_services, check_name, find_matching_container
+from sidekick import health_check, public_ports
 
 # Used to test command line arguments
 Args = namedtuple('Args', ['name', 'ip'])
+
+
+class MockEtcd( object ):
+    def delete( self, value ):
+        pass
+
+    def set( self, value ):
+        pass
 
 
 class TestSidekick( unittest.TestCase ):
@@ -18,6 +27,8 @@ class TestSidekick( unittest.TestCase ):
     def setUp( self ):
 
         self.args = Args( name='test', ip='localhost' )
+
+        self.etcd_client  = MockEtcd()
 
         self.container = {
             'Image': 'image:latest',
@@ -33,6 +44,11 @@ class TestSidekick( unittest.TestCase ):
             'Created': 1427906382,
             'Names': ['/test'],
             'Status': 'Up 2 days'}
+
+    def test_announce_services( self ):
+        ''' Test `announce_services` functionality '''
+        services = find_matching_container( [self.container], self.args )
+        announce_services( services.items(), 'test', self.etcd_client, 0 )
 
     def test_check_name( self ):
         ''' Test `check_name` functionality '''

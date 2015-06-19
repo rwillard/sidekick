@@ -3,7 +3,7 @@
 # @Author: ahuynh
 # @Date:   2015-06-10 16:51:36
 # @Last Modified by:   ahuynh
-# @Last Modified time: 2015-06-18 21:16:25
+# @Last Modified time: 2015-06-19 10:54:04
 '''
     The sidekick should essentially replace job of the following typical
     bash script that is used to announce a service to ETCD.
@@ -61,6 +61,28 @@ parser.add_argument( '--domain', action='store', default='example.com',
 
 parser.add_argument( '--timeout', action='store', type=int, default=10,
                      help='Private or public IP of the instance that is running this container.' )
+
+
+def announce_services( services, etcd_folder, etcd_client, timeout ):
+    for key, value in services:
+        logger.info( 'Health check for {}'.format( key ) )
+
+        full_key = os.path.join( etcd_folder, key )
+
+        healthy = health_check( value )
+
+        try:
+            if not healthy:
+                # Remove this server from ETCD if it exists
+                etcd_client.delete( full_key )
+            else:
+                # Announce this server to ETCD
+                etcd_client.set( full_key, value['uri'] )
+        except etcd.EtcdException as e:
+            logging.error( e )
+
+    logger.info( 'Sleeping for {} seconds'.format( timeout ) )
+    time.sleep( timeout )
 
 
 def check_name( container, name ):
@@ -163,7 +185,6 @@ def main():
 
     # Connect to ECTD
     etcd_client = etcd.Client()
-
     etcd_folder = os.path.join( args.prefix, args.domain )
     logger.debug( 'Announcing to {}'.format( etcd_folder ) )
 
@@ -181,26 +202,10 @@ def main():
 
     # Main health checking loop
     while True:
-
-        for key, value in matching.items():
-            logger.info( 'Health check for {}'.format( key ) )
-
-            full_key = os.path.join( etcd_folder, key )
-
-            healthy = health_check( value )
-
-            try:
-                if not healthy:
-                    # Remove this server from ETCD if it exists
-                    etcd_client.delete( full_key )
-                else:
-                    # Announce this server to ETCD
-                    etcd_client.set( full_key, value['uri'] )
-            except etcd.EtcdException as e:
-                logging.error( e )
-
-        logger.info( 'Sleeping for {} seconds'.format( args.timeout ) )
-        time.sleep( args.timeout )
+        announce_services( matching.items(),
+                           etcd_folder,
+                           etcd_client,
+                           args.timeout )
 
 if __name__ == '__main__':
     main()
