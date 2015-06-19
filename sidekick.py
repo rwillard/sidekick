@@ -69,7 +69,7 @@ def announce_services( services, etcd_folder, etcd_client, timeout ):
 
         full_key = os.path.join( etcd_folder, key )
 
-        healthy = health_check( value )
+        healthy = check_health( value )
 
         try:
             if not healthy:
@@ -83,6 +83,30 @@ def announce_services( services, etcd_folder, etcd_client, timeout ):
 
     logger.info( 'Sleeping for {} seconds'.format( timeout ) )
     time.sleep( timeout )
+
+
+def check_health( service ):
+    '''
+        Check the health of `service`.
+
+        This is done using a socket to test if the specified PublicPort is
+        responding to requests.
+    '''
+    healthy = False
+
+    try:
+        s = socket.socket()
+        s.connect( ( service['ip'], service['port'] ) )
+    except ConnectionRefusedError:
+        logger.error( 'tcp://{ip}:{port} health check FAILED'.format(**service) )
+        healthy = False
+    else:
+        s.close()
+        logger.info( 'tcp://{ip}:{port} health check SUCCEEDED'.format(**service) )
+        healthy = True
+        s.close()
+
+    return healthy
 
 
 def check_name( container, name ):
@@ -142,30 +166,6 @@ def find_matching_container( containers, args ):
             matching[ uuid ] = { 'ip': args.ip, 'port': port, 'uri': uri }
 
     return matching
-
-
-def health_check( service ):
-    '''
-        Check the health of `service`.
-
-        This is done using a socket to test if the specified PublicPort is
-        responding to requests.
-    '''
-    healthy = False
-
-    try:
-        s = socket.socket()
-        s.connect( ( service['ip'], service['port'] ) )
-    except ConnectionRefusedError:
-        logger.error( 'tcp://{ip}:{port} health check FAILED'.format(**service) )
-        healthy = False
-    else:
-        s.close()
-        logger.error( 'tcp://{ip}:{port} health check SUCCEEDED'.format(**service) )
-        healthy = True
-        s.close()
-
-    return healthy
 
 
 def public_ports( container ):

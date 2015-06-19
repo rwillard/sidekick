@@ -3,12 +3,12 @@
 # @Author: ahuynh
 # @Date:   2015-06-18 20:15:30
 # @Last Modified by:   ahuynh
-# @Last Modified time: 2015-06-19 10:55:22
+# @Last Modified time: 2015-06-19 13:19:26
 import unittest
 
 from collections import namedtuple
 from sidekick import announce_services, check_name, find_matching_container
-from sidekick import health_check, public_ports
+from sidekick import check_health, public_ports
 
 # Used to test command line arguments
 Args = namedtuple('Args', ['name', 'ip'])
@@ -50,6 +50,12 @@ class TestSidekick( unittest.TestCase ):
         services = find_matching_container( [self.container], self.args )
         announce_services( services.items(), 'test', self.etcd_client, 0 )
 
+    def test_check_health( self ):
+        ''' Test `check_health` functionality '''
+        results = find_matching_container( [self.container], self.args )
+        for value in results.values():
+            self.assertFalse( check_health( value ) )
+
     def test_check_name( self ):
         ''' Test `check_name` functionality '''
         self.assertTrue( check_name( self.container, 'test' ) )
@@ -72,12 +78,6 @@ class TestSidekick( unittest.TestCase ):
         no_open_ports['Ports'] = []
         with self.assertRaises( Exception ):
             find_matching_container( [no_open_ports], self.args )
-
-    def test_health_check( self ):
-        ''' Test `health_check` functionality '''
-        results = find_matching_container( [self.container], self.args )
-        for value in results.values():
-            self.assertFalse( health_check( value ) )
 
     def test_public_ports( self ):
         ''' Test `public_ports` functionality '''
