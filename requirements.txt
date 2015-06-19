@@ -1,10 +1,15 @@
 cffi==1.1.2
+coverage==3.7.1
 cryptography==0.9.1
 docker-py==1.2.2
 idna==2.0
+py==1.4.28
 pyasn1==0.1.7
 pycparser==2.14
 pyOpenSSL==0.15.1
+pytest==2.7.1
+pytest-cover==1.0.0
+pytest-coverage==0.0
 python-etcd==0.3.3
 requests==2.7.0
 six==1.9.0
