@@ -1,5 +1,8 @@
 # sidekick
 
+[![Build Status](https://travis-ci.org/a5huynh/sidekick.svg?branch=master)](https://travis-ci.org/a5huynh/sidekick)
+
+https://travis-ci.org/a5huynh/sidekick.svg?branch=maste
 If you're running services on CoreOS or using etcd as a way to keep track of
 different services that are running across your cluster, `sidekick` is a
 flexible presence service that was built for you.
