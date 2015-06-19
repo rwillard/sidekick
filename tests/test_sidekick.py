@@ -3,7 +3,7 @@
 # @Author: ahuynh
 # @Date:   2015-06-18 20:15:30
 # @Last Modified by:   ahuynh
-# @Last Modified time: 2015-06-18 21:07:08
+# @Last Modified time: 2015-06-19 10:36:06
 import unittest
 
 from collections import namedtuple
@@ -43,9 +43,15 @@ class TestSidekick( unittest.TestCase ):
         ''' Test `find_matching_container` functionality '''
         # Test a successful match
         results = find_matching_container( [self.container], self.args )
-        self.assertEqual( len( results.keys() ), 2 )
+        self.assertEqual( len( results.items() ), 2 )
 
-        # Test an unsuccessful match
+        # Test an unsuccessful match (no matching names)
+        invalid_name = dict( self.container )
+        invalid_name[ 'Names' ] = [ '/invalid_name' ]
+        results = find_matching_container( [invalid_name], self.args )
+        self.assertEqual( len( results.items() ), 0 )
+
+        # Test an unsuccessful match (no public ports)
         no_open_ports = dict( self.container )
         no_open_ports['Ports'] = []
         with self.assertRaises( Exception ):
