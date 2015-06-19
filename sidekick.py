@@ -3,7 +3,7 @@
 # @Author: ahuynh
 # @Date:   2015-06-10 16:51:36
 # @Last Modified by:   ahuynh
-# @Last Modified time: 2015-06-12 10:15:05
+# @Last Modified time: 2015-06-18 21:16:25
 '''
     The sidekick should essentially replace job of the following typical
     bash script that is used to announce a service to ETCD.
@@ -75,6 +75,77 @@ def check_name( container, name ):
     return False
 
 
+def find_matching_container( containers, args ):
+    '''
+        Given the name of the container:
+            - Find the matching container
+            - Note the open ports for that container
+            - Generate a UUID based on the name, ip, and port
+
+        Return a dictionary of generated URIs mapped to the UUID for each open
+        port, using the following format:
+
+            UUID: {
+                'ip':       IP that was passed in via args.ip,
+                'port':     Open port,
+                'uri':      IP:PORT
+            }
+    '''
+    # Find the matching container
+    matching = {}
+    for container in containers:
+        if not check_name( container, args.name ):
+            continue
+
+        ports = public_ports( container )
+
+        # TODO: Handle multiple public ports
+        # Right now we grab the first port in the list and announce the
+        # server using that IP
+        if len( ports ) == 0:
+            raise Exception( 'Container has no public ports' )
+
+        for port in ports:
+            port = port[ 'PublicPort' ]
+
+            # Create a UUID
+            m = hashlib.md5()
+            m.update( args.name.encode('utf-8') )
+            m.update( args.ip.encode('utf-8') )
+            m.update( str( port ).encode('utf-8') )
+            uuid = m.hexdigest()
+
+            # Store the details
+            uri = '{}:{}'.format( args.ip, port )
+            matching[ uuid ] = { 'ip': args.ip, 'port': port, 'uri': uri }
+
+    return matching
+
+
+def health_check( service ):
+    '''
+        Check the health of `service`.
+
+        This is done using a socket to test if the specified PublicPort is
+        responding to requests.
+    '''
+    healthy = False
+
+    try:
+        s = socket.socket()
+        s.connect( ( service['ip'], service['port'] ) )
+    except ConnectionRefusedError:
+        logger.error( 'tcp://{ip}:{port} health check FAILED'.format(**service) )
+        healthy = False
+    else:
+        s.close()
+        logger.error( 'tcp://{ip}:{port} health check SUCCEEDED'.format(**service) )
+        healthy = True
+        s.close()
+
+    return healthy
+
+
 def public_ports( container ):
     ''' Return a list of public ports for <container> '''
     return list(filter( lambda x: 'PublicPort' in x, container['Ports'] ))
@@ -90,8 +161,6 @@ def main():
         logger.info( 'Using {}'.format( args.docker ) )
         kwargs['base_url'] = args.docker
 
-    docker_client = Client(**kwargs)
-
     # Connect to ECTD
     etcd_client = etcd.Client()
 
@@ -99,36 +168,16 @@ def main():
     logger.debug( 'Announcing to {}'.format( etcd_folder ) )
 
     # Find the matching container
+    docker_client = Client(**kwargs)
     try:
         containers = docker_client.containers()
-    except Exception:
+        logger.error( containers )
+    except Exception as e:
+        logger.error( e )
         sys.exit( 'FAILURE - Unable to connect Docker. Is it running?' )
 
     # Find the matching container
-    matching = {}
-    for container in containers:
-        if check_name( container, args.name ):
-            ports = public_ports( container )
-
-            # TODO: Handle multiple public ports
-            # Right now we grab the first port in the list and announce the
-            # server using that IP
-            if len( ports ) == 0:
-                raise Exception( 'Container has no public ports' )
-
-            for port in ports:
-                port = port[ 'PublicPort' ]
-
-                # Create a UUID
-                m = hashlib.md5()
-                m.update( args.name.encode('utf-8') )
-                m.update( args.ip.encode('utf-8') )
-                m.update( str( port ).encode('utf-8') )
-                uuid = m.hexdigest()
-
-                # Store the details
-                uri = '{}:{}'.format( args.ip, port )
-                matching[ uuid ] = { 'ip': args.ip, 'port': port, 'uri': uri }
+    matching = find_matching_container( containers, args )
 
     # Main health checking loop
     while True:
@@ -138,25 +187,15 @@ def main():
 
             full_key = os.path.join( etcd_folder, key )
 
-            try:
-                s = socket.socket()
-                s.connect( ( value['ip'], value['port'] ) )
-            except ConnectionRefusedError:
-                logger.error( 'tcp://{ip}:{port} health check FAILED'.format(**value) )
-                healthy = False
-            else:
-                s.close()
-                logger.error( 'tcp://{ip}:{port} health check SUCCEEDED'.format(**value) )
-                healthy = True
-                s.close()
+            healthy = health_check( value )
 
             try:
                 if not healthy:
                     # Remove this server from ETCD if it exists
                     etcd_client.delete( full_key )
                 else:
-                # Announce this server to ETCD
-                etcd_client.set( full_key, value['uri'] )
+                    # Announce this server to ETCD
+                    etcd_client.set( full_key, value['uri'] )
             except etcd.EtcdException as e:
                 logging.error( e )
 

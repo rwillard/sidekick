@@ -1,0 +1,3 @@
+[run]
+omit=*.pyenvs*,*site-packages*,tests/*
+
