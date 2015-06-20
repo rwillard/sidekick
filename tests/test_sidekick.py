@@ -3,7 +3,7 @@
 # @Author: ahuynh
 # @Date:   2015-06-18 20:15:30
 # @Last Modified by:   ahuynh
-# @Last Modified time: 2015-06-19 13:58:46
+# @Last Modified time: 2015-06-19 17:06:28
 import unittest
 
 from collections import namedtuple
@@ -18,7 +18,7 @@ class MockEtcd( object ):
     def delete( self, value ):
         pass
 
-    def set( self, value ):
+    def write( self, value, ttl ):
         pass
 
 
@@ -48,7 +48,7 @@ class TestSidekick( unittest.TestCase ):
     def test_announce_services( self ):
         ''' Test `announce_services` functionality '''
         services = find_matching_container( [self.container], self.args )
-        announce_services( services.items(), 'test', self.etcd_client, 0 )
+        announce_services( services.items(), 'test', self.etcd_client, 0, 0 )
 
     def test_check_health( self ):
         ''' Test `check_health` functionality '''

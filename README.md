@@ -59,5 +59,6 @@ customized deployment onto clusters.
 | --etcd-port | ETCD cluster peer port. **Default:** 4001
 | --prefix   | The etcd folder in which to announce running services. **Default:** /services
 | --timeout  | The number of seconds to wait until the next health check. **Default:** 10
+| --ttl      | ETCD ttl in seconds for the service announcement. **Default:** 60
 
 
