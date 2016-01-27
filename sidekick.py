@@ -35,7 +35,7 @@ from docker import Client
 from docker.utils import kwargs_from_env
 
 # Create logger
-FORMAT = '%(asctime)s\t%(levelname)s \t %(module)s \t %(message)s'
+FORMAT = '%(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=FORMAT)
 logger = logging.getLogger( __name__ )
 
