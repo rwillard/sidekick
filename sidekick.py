@@ -80,12 +80,12 @@ parser.add_argument( '--vulcand', action='store', type=bool, default=False,
 parser.add_argument( '--type', action='store', default='http',
                     help='type for Vulcand')
 
-def announce_services( services, etcd_folder, etcd_client, timeout , ttl):
+def announce_services( services, etcd_folder, etcd_client, timeout , ttl, vulcand):
     for key, value in services:
         logger.info( 'Health check for {}'.format( key ) )
         healthy = check_health( value )
 
-        if value['vulcand']:
+        if vulcand:
             backend = "/vulcand/backends/"+key+"/backend"
             server = "/vulcand/backends/"+key+"/servers/srv1"
             frontend = "/vulcand/frontends/"+key+"/frontend"
@@ -189,7 +189,7 @@ def find_matching_container( containers, args ):
             port = port[ 'PublicPort' ]
 
             if args.vulcand:
-                matching[args.name] = { 'ip': args.ip, 'port': port, 'domain': args.domain, 'vulcand': args.vulcand, 'type': args.type}
+                matching[args.name] = { 'ip': args.ip, 'port': port, 'domain': args.domain, 'type': args.type}
             else:
                 # Create a UUID
                 m = hashlib.md5()
@@ -243,7 +243,8 @@ def main():
                            etcd_folder,
                            etcd_client,
                            args.timeout,
-                           args.ttl, )
+                           args.ttl,
+                           args.vulcand )
 
 if __name__ == '__main__':
     main()

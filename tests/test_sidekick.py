@@ -11,7 +11,7 @@ from sidekick import announce_services, check_name, find_matching_container
 from sidekick import check_health, public_ports
 
 # Used to test command line arguments
-Args = namedtuple('Args', ['name', 'ip', 'check_ip'])
+Args = namedtuple('Args', ['name', 'ip', 'check_ip', 'vulcand'])
 
 
 class MockEtcd( object ):
@@ -26,7 +26,7 @@ class TestSidekick( unittest.TestCase ):
 
     def setUp( self ):
 
-        self.args = Args( name='test', ip='localhost', check_ip='0.0.0.0' )
+        self.args = Args( name='test', ip='localhost', check_ip='0.0.0.0', vulcand=False )
 
         self.etcd_client  = MockEtcd()
 
@@ -48,7 +48,8 @@ class TestSidekick( unittest.TestCase ):
     def test_announce_services( self ):
         ''' Test `announce_services` functionality '''
         services = find_matching_container( [self.container], self.args )
-        announce_services( services.items(), 'test', self.etcd_client, 0, 0 )
+        print(services)
+        announce_services( services.items(), 'test', self.etcd_client, 0, 0, False )
 
     def test_check_health( self ):
         ''' Test `check_health` functionality '''
