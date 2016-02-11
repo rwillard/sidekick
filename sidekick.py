@@ -86,9 +86,9 @@ def announce_services( services, etcd_folder, etcd_client, timeout , ttl, vulcan
         healthy = check_health( value )
 
         if vulcand:
-            backend = "/vulcand/backends/"+key+"/backend"
-            server = "/vulcand/backends/"+key+"/servers/srv1"
-            frontend = "/vulcand/frontends/"+key+"/frontend"
+            backend = "/vulcand/backends/{0}/backend".format(key)
+            server = "/vulcand/backends/{0}/servers/srv1".format(key)
+            frontend = "/vulcand/frontends/{0}/frontend".format(key)
             try:
                 if not healthy:
                     # Remove this server from ETCD if it exists
@@ -98,8 +98,8 @@ def announce_services( services, etcd_folder, etcd_client, timeout , ttl, vulcan
                 else:
                     # Announce this server to ETCD
                     etcd_client.write( backend, {"Type": value['type']}, ttl=ttl)
-                    etcd_client.write( server, {"URL": "http://"+str(value['ip'])+":"+str(value['port'])}, ttl=ttl)
-                    etcd_client.write( frontend, {"Type": value['type'], "BackendId": key, "Route": "Host(`"+value['domain']+"`)"}, ttl=ttl)
+                    etcd_client.write( server, {"URL": "http://{0!}:{1!}".format(value['ip'], value['port'])}, ttl=ttl)
+                    etcd_client.write( frontend, {"Type": value['type'], "BackendId": key, "Route": "Host(`{0}`)".format(value['domain'])}, ttl=ttl)
             except etcd.EtcdException as e:
                 logging.error( e )
 
