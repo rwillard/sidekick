@@ -97,9 +97,9 @@ def announce_services( services, etcd_folder, etcd_client, timeout , ttl, vulcan
                     etcd_client.delete( frontend )
                 else:
                     # Announce this server to ETCD
-                    etcd_client.write( backend, {"Type": value['type']}, ttl=ttl)
-                    etcd_client.write( server, {"URL": "http://{0!s}:{1!s}".format(value['ip'], value['port'])}, ttl=ttl)
-                    etcd_client.write( frontend, {"Type": value['type'], "BackendId": key, "Route": "Host(`{0}`)".format(value['domain'])}, ttl=ttl)
+                    etcd_client.write( backend, {"Type": value['type']})
+                    etcd_client.write( server, {"URL": "http://{0!s}:{1!s}".format(value['ip'], value['port'])})
+                    etcd_client.write( frontend, {"Type": value['type'], "BackendId": key, "Route": "Host(`{0}`)".format(value['domain'])})
             except etcd.EtcdException as e:
                 logging.error( e )
 
