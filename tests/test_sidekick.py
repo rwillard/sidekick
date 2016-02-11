@@ -48,7 +48,6 @@ class TestSidekick( unittest.TestCase ):
     def test_announce_services( self ):
         ''' Test `announce_services` functionality '''
         services = find_matching_container( [self.container], self.args )
-        print(services)
         announce_services( services.items(), 'test', self.etcd_client, 0, 0, False )
 
     def test_check_health( self ):
