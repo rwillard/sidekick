@@ -59,7 +59,7 @@ parser.add_argument( '--docker', action='store', default='unix:///var/run/docker
 parser.add_argument( '--etcd-host', action='store', default='localhost',
                      help='ETCD host' )
 
-parser.add_argument( '--etcd-port', action='store', type=int, default=4001,
+parser.add_argument( '--etcd-port', action='store', type=int, default=2379,
                      help='ETCD port' )
 
 parser.add_argument( '--prefix', action='store', default='/services',
@@ -74,24 +74,46 @@ parser.add_argument( '--timeout', action='store', type=int, default=10,
 parser.add_argument( '--ttl', action='store', type=int, default=60,
                      help='ETCD ttl for the service announcement' )
 
+parser.add_argument( '--vulcand', action='store', type=bool, default=False,
+                    help='Selector for LB')
 
-def announce_services( services, etcd_folder, etcd_client, timeout , ttl ):
+parser.add_argument( '--type', action='store', default='http',
+                    help='type for Vulcand')
+
+def announce_services( services, etcd_folder, etcd_client, timeout , ttl, vulcand):
     for key, value in services:
         logger.info( 'Health check for {}'.format( key ) )
-
-        full_key = os.path.join( etcd_folder, key )
-
         healthy = check_health( value )
 
-        try:
-            if not healthy:
-                # Remove this server from ETCD if it exists
-                etcd_client.delete( full_key )
-            else:
-                # Announce this server to ETCD
-                etcd_client.write( full_key, value['uri'], ttl=ttl )
-        except etcd.EtcdException as e:
-            logging.error( e )
+        if vulcand:
+            backend = "/vulcand/backends/{0}/backend".format(key)
+            server = "/vulcand/backends/{0}/servers/srv1".format(key)
+            frontend = "/vulcand/frontends/{0}/frontend".format(key)
+            try:
+                if not healthy:
+                    # Remove this server from ETCD if it exists
+                    etcd_client.delete( backend )
+                    etcd_client.delete( server )
+                    etcd_client.delete( frontend )
+                else:
+                    # Announce this server to ETCD
+                    etcd_client.write( backend, {"Type": value['type']}, ttl=ttl)
+                    etcd_client.write( server, {"URL": "http://{0!}:{1!}".format(value['ip'], value['port'])}, ttl=ttl)
+                    etcd_client.write( frontend, {"Type": value['type'], "BackendId": key, "Route": "Host(`{0}`)".format(value['domain'])}, ttl=ttl)
+            except etcd.EtcdException as e:
+                logging.error( e )
+
+        else:
+            full_key = os.path.join( etcd_folder, key )
+            try:
+                if not healthy:
+                    # Remove this server from ETCD if it exists
+                    etcd_client.delete( full_key )
+                else:
+                    # Announce this server to ETCD
+                    etcd_client.write( full_key, value['uri'], ttl=ttl )
+            except etcd.EtcdException as e:
+                logging.error( e )
 
     logger.info( 'Sleeping for {} seconds'.format( timeout ) )
     time.sleep( timeout )
@@ -166,16 +188,19 @@ def find_matching_container( containers, args ):
         for port in ports:
             port = port[ 'PublicPort' ]
 
-            # Create a UUID
-            m = hashlib.md5()
-            m.update( args.name.encode('utf-8') )
-            m.update( args.ip.encode('utf-8') )
-            m.update( str( port ).encode('utf-8') )
-            uuid = m.hexdigest()
+            if args.vulcand:
+                matching[args.name] = { 'ip': args.ip, 'port': port, 'domain': args.domain, 'type': args.type}
+            else:
+                # Create a UUID
+                m = hashlib.md5()
+                m.update( args.name.encode('utf-8') )
+                m.update( args.ip.encode('utf-8') )
+                m.update( str( port ).encode('utf-8') )
+                uuid = m.hexdigest()
 
-            # Store the details
-            uri = '{}:{}'.format( args.ip, port )
-            matching[ uuid ] = { 'ip': args.check_ip, 'port': port, 'uri': uri }
+                # Store the details
+                uri = '{}:{}'.format( args.ip, port )
+                matching[ uuid ] = { 'ip': args.check_ip, 'port': port, 'uri': uri }
 
     return matching
 
@@ -197,7 +222,7 @@ def main():
 
     # Connect to ECTD
     etcd_client = etcd.Client( host=args.etcd_host, port=args.etcd_port )
-    etcd_folder = os.path.join( args.prefix, args.domain )
+    etcd_folder = os.path.join( args.prefix, args.name )
     logger.debug( 'Announcing to {}'.format( etcd_folder ) )
 
     # Find the matching container
@@ -218,7 +243,8 @@ def main():
                            etcd_folder,
                            etcd_client,
                            args.timeout,
-                           args.ttl )
+                           args.ttl,
+                           args.vulcand )
 
 if __name__ == '__main__':
     main()
