@@ -3,7 +3,7 @@
 # @Author: ahuynh
 # @Date:   2015-06-10 16:51:36
 # @Last Modified by:   ahuynh
-# @Last Modified time: 2016-02-11 14:23:46
+# @Last Modified time: 2016-02-11 14:57:04
 '''
     The sidekick should essentially replace job of the following typical
     bash script that is used to announce a service to ETCD.
@@ -30,6 +30,7 @@ import os
 import time
 import socket
 import sys
+import json
 
 from docker import Client
 from docker.utils import kwargs_from_env
@@ -92,18 +93,22 @@ def announce_services( services, etcd_folder, etcd_client, timeout, ttl, vulcand
         # Keys to write to etcd
         announcement = {}
         if vulcand:
-            backend  = "/vulcand/backends/{domain}/backend".format( domain=value['domain'] )
-            server   = "/vulcand/backends/{domain}/servers/{uuid}".format( domain=value['domain'], uuid=key )
-            frontend = "/vulcand/frontends/{domain}/frontend".format( domain=value['domain'] )
-            announcement = {
-                backend: { 'Type': value[ 'type' ] },
-                server: { 'URL': 'http://{uri}'.format( **value ) },
-                frontend: {
-                    'Type': value[ 'type' ],
-                    'BackendId': value[ 'domain' ],
-                    'Route': 'Host("{domain}")'.format( **value )
-                }
-            }
+            backend = "/vulcand/backends/{0}/backend".format(key)
+            server = "/vulcand/backends/{0}/servers/srv1".format(key)
+            frontend = "/vulcand/frontends/{0}/frontend".format(key)
+            try:
+                if not healthy:
+                    # Remove this server from ETCD if it exists
+                    etcd_client.delete( backend )
+                    etcd_client.delete( server )
+                    etcd_client.delete( frontend )
+                else:
+                    # Announce this server to ETCD
+                    etcd_client.write( backend, json.dumps({"Type": value['type']}), ttl=ttl)
+                    etcd_client.write( server, json.dumps({"URL": "http://{0!s}:{1!s}".format(value['ip'], value['port'])}), ttl=ttl)
+                    etcd_client.write( frontend, json.dumps({"Type": value['type'], "BackendId": key, "Route": "Host(`{0}`)".format(value['domain'])}), ttl=ttl)
+            except etcd.EtcdException as e:
+                logging.error( e )
         else:
             announcement[ os.path.join( etcd_folder, key ) ] = value[ 'uri' ]
 
