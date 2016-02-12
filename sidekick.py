@@ -3,7 +3,7 @@
 # @Author: ahuynh
 # @Date:   2015-06-10 16:51:36
 # @Last Modified by:   ahuynh
-# @Last Modified time: 2016-02-11 14:57:04
+# @Last Modified time: 2016-02-11 16:04:41
 '''
     The sidekick should essentially replace job of the following typical
     bash script that is used to announce a service to ETCD.
@@ -93,9 +93,9 @@ def announce_services( services, etcd_folder, etcd_client, timeout, ttl, vulcand
         # Keys to write to etcd
         announcement = {}
         if vulcand:
-            backend = "/vulcand/backends/{0}/backend".format(key)
-            server = "/vulcand/backends/{0}/servers/srv1".format(key)
-            frontend = "/vulcand/frontends/{0}/frontend".format(key)
+            backend  = "/vulcand/backends/{domain}/backend".format( domain=value['domain'] )
+            server   = "/vulcand/backends/{domain}/servers/{uuid}".format( domain=value['domain'], uuid=key )
+            frontend = "/vulcand/frontends/{domain}/frontend".format( domain=value['domain'] )
             try:
                 if not healthy:
                     # Remove this server from ETCD if it exists
@@ -104,9 +104,14 @@ def announce_services( services, etcd_folder, etcd_client, timeout, ttl, vulcand
                     etcd_client.delete( frontend )
                 else:
                     # Announce this server to ETCD
-                    etcd_client.write( backend, json.dumps({"Type": value['type']}), ttl=ttl)
-                    etcd_client.write( server, json.dumps({"URL": "http://{0!s}:{1!s}".format(value['ip'], value['port'])}), ttl=ttl)
-                    etcd_client.write( frontend, json.dumps({"Type": value['type'], "BackendId": key, "Route": "Host(`{0}`)".format(value['domain'])}), ttl=ttl)
+                    etcd_client.write( backend, json.dumps({ 'Type': value['type'] }), ttl=ttl)
+                    etcd_client.write( server, json.dumps({ 'URL': 'http://{uri}'.format( **value ) }), ttl=ttl)
+                    etcd_client.write( frontend, json.dumps({
+                        'Type': value['type'],
+                        'BackendId': value['domain'],
+                        'Route': 'Host(`{0}`)'.format( value['domain'] )
+                    }), ttl=ttl)
+
             except etcd.EtcdException as e:
                 logging.error( e )
         else:
@@ -139,13 +144,13 @@ def check_health( service ):
 
     try:
         s = socket.socket()
-        s.connect( ( service['ip'], service['port'] ) )
+        s.connect( ( service['check_ip'], service['port'] ) )
     except ConnectionRefusedError:
-        logger.error( 'tcp://{ip}:{port} health check FAILED'.format(**service) )
+        logger.error( 'tcp://{check_ip}:{port} health check FAILED'.format(**service) )
         healthy = False
     else:
         s.close()
-        logger.info( 'tcp://{ip}:{port} health check SUCCEEDED'.format(**service) )
+        logger.info( 'tcp://{check_ip}:{port} health check SUCCEEDED'.format(**service) )
         healthy = True
         s.close()
 
@@ -208,7 +213,8 @@ def find_matching_container( containers, args ):
             # Store the details
             uri = '{}:{}'.format( args.ip, port )
             matching[ uuid ] = {
-                'ip': args.check_ip,
+                'ip': args.ip,
+                'check_ip': args.check_ip,
                 'port': port,
                 'uri': uri,
                 'domain': args.domain,
