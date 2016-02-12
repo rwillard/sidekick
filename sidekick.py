@@ -3,7 +3,7 @@
 # @Author: ahuynh
 # @Date:   2015-06-10 16:51:36
 # @Last Modified by:   ahuynh
-# @Last Modified time: 2016-02-11 16:04:41
+# @Last Modified time: 2016-02-11 16:36:44
 '''
     The sidekick should essentially replace job of the following typical
     bash script that is used to announce a service to ETCD.
@@ -241,7 +241,7 @@ def main():
 
     # Connect to ECTD
     etcd_client = etcd.Client( host=args.etcd_host, port=args.etcd_port )
-    etcd_folder = os.path.join( args.prefix, args.name )
+    etcd_folder = os.path.join( args.prefix, args.domain )
     logger.debug( 'Announcing to {}'.format( etcd_folder ) )
 
     # Find the matching container
