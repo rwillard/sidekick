@@ -3,7 +3,7 @@
 # @Author: ahuynh
 # @Date:   2015-06-10 16:51:36
 # @Last Modified by:   ahuynh
-# @Last Modified time: 2015-06-19 17:05:53
+# @Last Modified time: 2016-02-11 16:36:44
 '''
     The sidekick should essentially replace job of the following typical
     bash script that is used to announce a service to ETCD.
@@ -40,56 +40,62 @@ FORMAT = '%(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=FORMAT)
 logger = logging.getLogger( __name__ )
 
-# Parse arguments
-parser = argparse.ArgumentParser( description='Announce a service to etcd' )
 
-# REQUIRED PARAMETERS
-parser.add_argument( '--name', action='store', required=True,
-                     help='Name of the docker container to check and announce.' )
+def parse_args( args ):
+    """ Handle parsing command line arguments """
+    parser = argparse.ArgumentParser( description='Announce a service to etcd' )
+    # REQUIRED PARAMETERS
+    parser.add_argument( '--name', action='store', required=True,
+                         help='Name of the docker container to check and announce.' )
 
-parser.add_argument( '--ip', action='store', required=True,
-                     help='Private or public IP of the instance that is running this container.' )
+    parser.add_argument( '--ip', action='store', required=True,
+                         help='Private or public IP of the instance that is running this container.' )
 
-# OPTIONAL PARAMETERS
-parser.add_argument( '--check-ip', action='store', default='0.0.0.0',
-                     help='IP used for health checks.' )
+    # OPTIONAL PARAMETERS
+    parser.add_argument( '--check-ip', action='store', default='0.0.0.0',
+                         help='IP used for health checks.' )
 
-parser.add_argument( '--docker', action='store', default='unix:///var/run/docker.sock',
-                     help='Docker base URI.' )
+    parser.add_argument( '--docker', action='store', default='unix:///var/run/docker.sock',
+                         help='Docker base URI.' )
 
-parser.add_argument( '--etcd-host', action='store', default='localhost',
-                     help='ETCD host' )
+    parser.add_argument( '--etcd-host', action='store', default='localhost',
+                         help='ETCD host' )
 
-parser.add_argument( '--etcd-port', action='store', type=int, default=2379,
-                     help='ETCD port' )
+    parser.add_argument( '--etcd-port', action='store', type=int, default=2379,
+                         help='ETCD port' )
 
-parser.add_argument( '--prefix', action='store', default='/services',
-                     help='ETCD folder where we\'ll announce services.' )
+    parser.add_argument( '--prefix', action='store', default='/services',
+                         help='ETCD folder where we\'ll announce services. Ignored if vulcand flag is true.' )
 
-parser.add_argument( '--domain', action='store', default='example.com',
-                     help='Domain name to announce this service as.' )
+    parser.add_argument( '--domain', action='store', default='example.com',
+                         help='Domain name to announce this service as.' )
 
-parser.add_argument( '--timeout', action='store', type=int, default=10,
-                     help='Private or public IP of the instance that is running this container.' )
+    parser.add_argument( '--timeout', action='store', type=int, default=10,
+                         help='Private or public IP of the instance that is running this container.' )
 
-parser.add_argument( '--ttl', action='store', type=int, default=60,
-                     help='ETCD ttl for the service announcement' )
+    parser.add_argument( '--ttl', action='store', type=int, default=60,
+                         help='ETCD ttl for the service announcement' )
 
-parser.add_argument( '--vulcand', action='store', type=bool, default=False,
-                    help='Selector for LB')
+    parser.add_argument( '--vulcand', action='store', type=bool, default=False,
+                         help='Selector for LB')
 
-parser.add_argument( '--type', action='store', default='http',
-                    help='type for Vulcand')
+    parser.add_argument( '--type', action='store', default='http',
+                         help='type for Vulcand')
 
-def announce_services( services, etcd_folder, etcd_client, timeout , ttl, vulcand):
+    return parser.parse_args( args )
+
+
+def announce_services( services, etcd_folder, etcd_client, timeout, ttl, vulcand ):
     for key, value in services:
         logger.info( 'Health check for {}'.format( key ) )
         healthy = check_health( value )
 
+        # Keys to write to etcd
+        announcement = {}
         if vulcand:
-            backend = "/vulcand/backends/{0}/backend".format(key)
-            server = "/vulcand/backends/{0}/servers/srv1".format(key)
-            frontend = "/vulcand/frontends/{0}/frontend".format(key)
+            backend  = "/vulcand/backends/{domain}/backend".format( domain=value['domain'] )
+            server   = "/vulcand/backends/{domain}/servers/{uuid}".format( domain=value['domain'], uuid=key )
+            frontend = "/vulcand/frontends/{domain}/frontend".format( domain=value['domain'] )
             try:
                 if not healthy:
                     # Remove this server from ETCD if it exists
@@ -98,23 +104,30 @@ def announce_services( services, etcd_folder, etcd_client, timeout , ttl, vulcan
                     etcd_client.delete( frontend )
                 else:
                     # Announce this server to ETCD
-                    etcd_client.write( backend, json.dumps({"Type": value['type']}), ttl=ttl)
-                    etcd_client.write( server, json.dumps({"URL": "http://{0!s}:{1!s}".format(value['ip'], value['port'])}), ttl=ttl)
-                    etcd_client.write( frontend, json.dumps({"Type": value['type'], "BackendId": key, "Route": "Host(`{0}`)".format(value['domain'])}), ttl=ttl)
-            except etcd.EtcdException as e:
-                logging.error( e )
+                    etcd_client.write( backend, json.dumps({ 'Type': value['type'] }), ttl=ttl)
+                    etcd_client.write( server, json.dumps({ 'URL': 'http://{uri}'.format( **value ) }), ttl=ttl)
+                    etcd_client.write( frontend, json.dumps({
+                        'Type': value['type'],
+                        'BackendId': value['domain'],
+                        'Route': 'Host(`{0}`)'.format( value['domain'] )
+                    }), ttl=ttl)
 
-        else:
-            full_key = os.path.join( etcd_folder, key )
-            try:
-                if not healthy:
-                    # Remove this server from ETCD if it exists
-                    etcd_client.delete( full_key )
-                else:
-                    # Announce this server to ETCD
-                    etcd_client.write( full_key, value['uri'], ttl=ttl )
             except etcd.EtcdException as e:
                 logging.error( e )
+        else:
+            announcement[ os.path.join( etcd_folder, key ) ] = value[ 'uri' ]
+
+        try:
+            if not healthy:
+                # Remove keys from server if not healthy
+                for k in announcement.keys():
+                    etcd_client.delete( k )
+            else:
+                # Annouce service to etcd
+                for ( k, v ) in announcement.items():
+                    etcd_client.write( k, v, ttl=ttl )
+        except etcd.EtcdException as e:
+            logging.error( e )
 
     logger.info( 'Sleeping for {} seconds'.format( timeout ) )
     time.sleep( timeout )
@@ -131,13 +144,13 @@ def check_health( service ):
 
     try:
         s = socket.socket()
-        s.connect( ( service['ip'], service['port'] ) )
+        s.connect( ( service['check_ip'], service['port'] ) )
     except ConnectionRefusedError:
-        logger.error( 'tcp://{ip}:{port} health check FAILED'.format(**service) )
+        logger.error( 'tcp://{check_ip}:{port} health check FAILED'.format(**service) )
         healthy = False
     else:
         s.close()
-        logger.info( 'tcp://{ip}:{port} health check SUCCEEDED'.format(**service) )
+        logger.info( 'tcp://{check_ip}:{port} health check SUCCEEDED'.format(**service) )
         healthy = True
         s.close()
 
@@ -189,19 +202,24 @@ def find_matching_container( containers, args ):
         for port in ports:
             port = port[ 'PublicPort' ]
 
-            if args.vulcand:
-                matching[args.name] = { 'ip': args.ip, 'port': port, 'domain': args.domain, 'type': args.type}
-            else:
-                # Create a UUID
-                m = hashlib.md5()
-                m.update( args.name.encode('utf-8') )
-                m.update( args.ip.encode('utf-8') )
-                m.update( str( port ).encode('utf-8') )
-                uuid = m.hexdigest()
+            # Create a UUID to uniquely identify a service that is running on
+            # a particular machine with a particular port.
+            m = hashlib.md5()
+            m.update( args.name.encode('utf-8') )
+            m.update( args.ip.encode('utf-8') )
+            m.update( str( port ).encode('utf-8') )
+            uuid = m.hexdigest()
 
-                # Store the details
-                uri = '{}:{}'.format( args.ip, port )
-                matching[ uuid ] = { 'ip': args.check_ip, 'port': port, 'uri': uri }
+            # Store the details
+            uri = '{}:{}'.format( args.ip, port )
+            matching[ uuid ] = {
+                'ip': args.ip,
+                'check_ip': args.check_ip,
+                'port': port,
+                'uri': uri,
+                'domain': args.domain,
+                'type': args.type
+            }
 
     return matching
 
@@ -212,7 +230,7 @@ def public_ports( container ):
 
 
 def main():
-    args = parser.parse_args()
+    args = parse_args( sys.argv[1:] )
     kwargs = kwargs_from_env()
 
     # Connect to docker
@@ -223,7 +241,7 @@ def main():
 
     # Connect to ECTD
     etcd_client = etcd.Client( host=args.etcd_host, port=args.etcd_port )
-    etcd_folder = os.path.join( args.prefix, args.name )
+    etcd_folder = os.path.join( args.prefix, args.domain )
     logger.debug( 'Announcing to {}'.format( etcd_folder ) )
 
     # Find the matching container

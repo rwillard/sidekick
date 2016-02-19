@@ -3,7 +3,7 @@
 # @Author: ahuynh
 # @Date:   2015-06-18 20:15:30
 # @Last Modified by:   ahuynh
-# @Last Modified time: 2015-06-19 17:06:28
+# @Last Modified time: 2016-02-11 16:23:22
 import unittest
 
 from collections import namedtuple
@@ -11,7 +11,7 @@ from sidekick import announce_services, check_name, find_matching_container
 from sidekick import check_health, public_ports
 
 # Used to test command line arguments
-Args = namedtuple('Args', ['name', 'ip', 'check_ip', 'vulcand'])
+Args = namedtuple('Args', ['name', 'ip', 'check_ip', 'domain', 'vulcand', 'type'])
 
 
 class MockEtcd( object ):
@@ -26,7 +26,14 @@ class TestSidekick( unittest.TestCase ):
 
     def setUp( self ):
 
-        self.args = Args( name='test', ip='localhost', check_ip='0.0.0.0', vulcand=False )
+        self.args = Args(
+            name='test',
+            ip='localhost',
+            check_ip='0.0.0.0',
+            domain='example.com',
+            vulcand=False,
+            type='http'
+        )
 
         self.etcd_client  = MockEtcd()
 
